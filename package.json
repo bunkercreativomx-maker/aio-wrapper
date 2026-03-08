@@ -1,0 +1,48 @@
+{
+    "name": "wrapper-one",
+    "version": "1.0.0",
+    "description": "WrapperOne - All-in-One Web Workspace",
+    "main": "main.js",
+    "scripts": {
+        "start": "electron .",
+        "pack": "electron-builder --dir",
+        "dist": "electron-builder"
+    },
+    "keywords": [
+        "electron",
+        "web-wrapper"
+    ],
+    "author": "pakov",
+    "license": "ISC",
+    "devDependencies": {
+        "electron": "^34.0.0",
+        "electron-builder": "^24.13.3"
+    },
+    "dependencies": {
+        "electron-log": "^5.4.3",
+        "electron-store": "^11.0.2",
+        "electron-updater": "^6.8.3"
+    },
+    "build": {
+        "appId": "com.pakov.wrapperone",
+        "productName": "WrapperOne",
+        "asar": false,
+        "win": {
+            "target": "nsis"
+        },
+        "nsis": {
+            "oneClick": false,
+            "allowToChangeInstallationDirectory": true
+        },
+        "directories": {
+            "output": "dist"
+        },
+        "publish": [
+            {
+                "provider": "github",
+                "owner": "bunkercreativomx-maker",
+                "repo": "wrapper-one"
+            }
+        ]
+    }
+}

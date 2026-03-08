@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AiO Web Wrapper</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <!-- Titlebar drag region for frameless window -->
+    <div id="drag-region"></div>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">AiO</div>
+            </div>
+
+            <ul id="app-list" class="app-list">
+                <!-- Apps injected by JS -->
+            </ul>
+
+            <div class="sidebar-footer">
+                <button id="add-app-btn" class="icon-btn" title="Add New App">
+                    <svg viewBox="0 0 24 24" width="24" height="24">
+                        <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                    </svg>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Background filler for native window controls (28px height) -->
+            <div class="title-bar-filler"></div>
+
+            <div id="welcome-screen" class="welcome-screen">
+                <div class="welcome-icon">🚀</div>
+                <h1>Welcome to AiO</h1>
+                <p>Select an app from the sidebar or add a new one.</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal for adding/editing apps -->
+    <div id="add-app-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2 id="modal-title">Add Web App</h2>
+            <form id="add-app-form">
+                <input type="hidden" id="app-id">
+                <div class="form-group">
+                    <label for="app-name">Name</label>
+                    <input type="text" id="app-name" required placeholder="e.g. WhatsApp">
+                </div>
+                <div class="form-group">
+                    <label for="app-url">URL</label>
+                    <input type="url" id="app-url" required placeholder="e.g. https://web.whatsapp.com">
+                </div>
+                <div class="form-group">
+                    <label for="app-icon">Icon URL (Optional)</label>
+                    <input type="url" id="app-icon" placeholder="https://...">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" id="cancel-add-btn" class="btn secondary">Cancel</button>
+                    <button type="submit" class="btn primary">Add App</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+
+</html>
