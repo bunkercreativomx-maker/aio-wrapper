@@ -1,6 +1,6 @@
 {
     "name": "wrapper-one",
-    "version": "1.0.1",
+    "version": "1.0.3",
     "description": "WrapperOne - All-in-One Web Workspace",
     "main": "main.js",
     "scripts": {
@@ -42,7 +42,7 @@
             {
                 "provider": "github",
                 "owner": "bunkercreativomx-maker",
-                "repo": "wrapper-one"
+                "repo": "aio-wrapper"
             }
         ]
     }
