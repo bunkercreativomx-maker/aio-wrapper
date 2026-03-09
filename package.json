@@ -1,6 +1,6 @@
 {
     "name": "wrapper-one",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "WrapperOne - All-in-One Web Workspace",
     "main": "main.js",
     "scripts": {
