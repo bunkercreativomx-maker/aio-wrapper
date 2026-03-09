@@ -372,3 +372,108 @@ input,
     background-color: rgba(255, 255, 255, 0.05);
     color: var(--text-main);
 }
+
+/* Authentication Modal Specifics */
+.auth-content {
+    text-align: center;
+    position: relative;
+    padding-top: 40px;
+}
+
+.auth-subtitle {
+    color: var(--text-muted);
+    font-size: 0.95rem;
+    margin-top: -16px;
+    margin-bottom: 24px;
+}
+
+.auth-content .form-group {
+    text-align: left;
+}
+
+.close-modal-btn {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: color 0.2s;
+    line-height: 1;
+}
+
+.close-modal-btn:hover {
+    color: var(--text-main);
+}
+
+.full-width {
+    width: 100%;
+}
+
+.auth-actions {
+    margin-top: 24px;
+    justify-content: center;
+}
+
+.auth-toggle {
+    margin-top: 20px;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.auth-toggle a {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 500;
+    margin-left: 4px;
+    transition: color 0.2s;
+}
+
+.auth-toggle a:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+
+.auth-error {
+    background-color: rgba(255, 71, 87, 0.1);
+    color: #ff4757;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    margin-top: 16px;
+    border: 1px solid rgba(255, 71, 87, 0.2);
+    text-align: left;
+}
+
+/* Account Info Profile */
+.avatar-circle {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+    margin: 0 auto 16px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-size: 2.5rem;
+    font-weight: 800;
+    box-shadow: 0 8px 24px rgba(108, 92, 231, 0.4);
+}
+
+#logged-in-email {
+    font-size: 1.2rem;
+    margin-bottom: 8px;
+}
+
+.sync-status {
+    color: #2ed573;
+    font-size: 0.9rem;
+    background: rgba(46, 213, 115, 0.1);
+    padding: 8px 16px;
+    border-radius: 20px;
+    display: inline-block;
+    margin-bottom: 24px;
+}

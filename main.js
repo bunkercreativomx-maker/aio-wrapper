@@ -65,18 +65,25 @@ app.whenReady().then(async () => {
     const { default: Store } = await import('electron-store');
     store = new Store();
 
-    // Default apps if not set
+    const DEFAULT_APPS = [
+        { id: 'whatsapp', name: 'WhatsApp', url: 'https://web.whatsapp.com', icon: 'https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg' },
+        { id: 'discord', name: 'Discord', url: 'https://discord.com/app', icon: 'https://assets-global.website-files.com/6257adef9a2dc8d4e0852ffa/636e0a6a49aa1b50461c2901_aHVi.svg' },
+        { id: 'slack', name: 'Slack', url: 'https://app.slack.com', icon: 'https://upload.wikimedia.org/wikipedia/commons/d/d5/Slack_icon_2019.svg' },
+        { id: 'chatgpt', name: 'ChatGPT', url: 'https://chat.openai.com', icon: 'https://upload.wikimedia.org/wikipedia/commons/0/04/ChatGPT_logo.svg' }
+    ];
+
+    // Initialize local apps
     if (!store.has('apps')) {
-        store.set('apps', [
-            { id: 'whatsapp', name: 'WhatsApp', url: 'https://web.whatsapp.com', icon: 'https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg' },
-            { id: 'discord', name: 'Discord', url: 'https://discord.com/app', icon: 'https://assets-global.website-files.com/6257adef9a2dc8d4e0852ffa/636e0a6a49aa1b50461c2901_aHVi.svg' },
-            { id: 'slack', name: 'Slack', url: 'https://app.slack.com', icon: 'https://upload.wikimedia.org/wikipedia/commons/d/d5/Slack_icon_2019.svg' },
-            { id: 'chatgpt', name: 'ChatGPT', url: 'https://chat.openai.com', icon: 'https://upload.wikimedia.org/wikipedia/commons/0/04/ChatGPT_logo.svg' }
-        ]);
+        store.set('apps', DEFAULT_APPS);
     }
 
+    // --- IPC Handlers for Data Sync ---
+
     ipcMain.handle('get-apps', () => store.get('apps'));
-    ipcMain.on('save-apps', (event, apps) => store.set('apps', apps));
+
+    ipcMain.on('save-apps', (event, apps) => {
+        store.set('apps', apps);
+    });
 
     createWindow();
 

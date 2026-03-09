@@ -1,3 +1,31 @@
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+import {
+    getAuth,
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
+    signOut,
+    onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.9.0/firebase-auth.js";
+import {
+    getFirestore,
+    doc,
+    setDoc,
+    getDoc
+} from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyD3X2npEyrc5D1SAe9Bv4Q0HpVLQJVp4WI",
+    authDomain: "wrapper-one.firebaseapp.com",
+    projectId: "wrapper-one",
+    storageBucket: "wrapper-one.firebasestorage.app",
+    messagingSenderId: "630195478390",
+    appId: "1:630195478390:web:78f5f6779ed2c6abe9e457"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+export const auth = getAuth(fbApp);
+export const db = getFirestore(fbApp);
+
 let apps = [];
 
 let activeAppId = null;
@@ -89,7 +117,7 @@ function renderApps() {
             apps.splice(index, 0, draggedApp);
 
             // Save and re-render
-            if (window.electronAPI) window.electronAPI.saveApps(apps);
+            saveLocalAndCloudApps();
             renderApps();
         });
 
@@ -120,8 +148,8 @@ function removeApp(id) {
     }
     renderApps();
 
+    saveLocalAndCloudApps();
     if (window.electronAPI) {
-        window.electronAPI.saveApps(apps);
         window.electronAPI.removeApp(id);
     }
 }
@@ -195,21 +223,163 @@ addAppForm.addEventListener('submit', (e) => {
     }
     renderApps();
 
-    if (window.electronAPI) {
-        window.electronAPI.saveApps(apps);
-    }
+    saveLocalAndCloudApps();
 
     modal.classList.add('hidden');
     addAppForm.reset();
 });
 
-// Close modal when clicking outside
-modal.addEventListener('click', (e) => {
-    if (e.target === modal) {
-        modal.classList.add('hidden');
-        addAppForm.reset();
-        if (window.electronAPI) window.electronAPI.showActiveApp();
+const authBtn = document.getElementById('auth-btn');
+const authModal = document.getElementById('auth-modal');
+const closeAuthBtn = document.getElementById('close-auth-btn');
+const authForm = document.getElementById('auth-form');
+const authToggleLink = document.getElementById('auth-toggle-link');
+const authToggleText = document.getElementById('auth-toggle-text');
+const authTitle = document.getElementById('auth-title');
+const authSubtitle = document.getElementById('auth-subtitle');
+const authSubmitBtn = document.getElementById('auth-submit-btn');
+const authError = document.getElementById('auth-error');
+const accountInfo = document.getElementById('account-info');
+const loggedInEmail = document.getElementById('logged-in-email');
+const avatarInitial = document.getElementById('avatar-initial');
+const logoutBtn = document.getElementById('logout-btn');
+
+let isLoginMode = true;
+
+// Helper to save apps both locally and in cloud
+async function saveLocalAndCloudApps() {
+    if (window.electronAPI) window.electronAPI.saveApps(apps);
+    if (auth.currentUser) {
+        try {
+            await setDoc(doc(db, "users", auth.currentUser.uid), { apps });
+        } catch (e) {
+            console.error("Cloud sync failed:", e);
+            alert("No se pudo guardar la configuración en la nube. Revisa si Firestore está habilitado en tu proyecto de Firebase. Error: " + e.message);
+        }
     }
+}
+
+// Auth State Checker
+function updateAuthUI(user) {
+    if (user) {
+        authForm.style.display = 'none';
+        accountInfo.style.display = 'block';
+        accountInfo.classList.remove('hidden'); // legacy class removal
+        loggedInEmail.textContent = user.email;
+        avatarInitial.textContent = user.email.charAt(0).toUpperCase();
+    } else {
+        authForm.style.display = 'block';
+        accountInfo.style.display = 'none';
+        authTitle.textContent = isLoginMode ? 'Sign In to Sync' : 'Create Account';
+    }
+}
+
+// React to login/logout automatically
+onAuthStateChanged(auth, async (user) => {
+    updateAuthUI(user);
+    if (user) {
+        try {
+            const docSnap = await getDoc(doc(db, "users", user.uid));
+            if (docSnap.exists() && docSnap.data().apps) {
+                apps = docSnap.data().apps;
+                renderApps();
+                if (window.electronAPI) window.electronAPI.saveApps(apps);
+            } else {
+                // If cloud is empty, upload current defaults
+                await setDoc(doc(db, "users", user.uid), { apps });
+            }
+        } catch (e) {
+            console.error("Error pulling cloud data", e);
+            alert("Error al cargar tus aplicaciones desde la nube. Asegúrate de que Firestore Database esté creado en Firebase. Error: " + e.message);
+        }
+    }
+});
+
+// Auth Modal Actions
+authBtn.addEventListener('click', () => {
+    updateAuthUI(auth.currentUser);
+    authModal.classList.remove('hidden');
+    if (window.electronAPI) window.electronAPI.hideActiveApp();
+});
+
+closeAuthBtn.addEventListener('click', () => {
+    authModal.classList.add('hidden');
+    authError.classList.add('hidden');
+    if (window.electronAPI) window.electronAPI.showActiveApp();
+});
+
+authToggleLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    isLoginMode = !isLoginMode;
+    authError.classList.add('hidden');
+
+    if (isLoginMode) {
+        authTitle.textContent = 'Sign In to Sync';
+        authSubtitle.textContent = 'Save your workspace to the cloud.';
+        authSubmitBtn.textContent = 'Sign In';
+        authToggleText.textContent = "Don't have an account?";
+        authToggleLink.textContent = "Create one";
+    } else {
+        authTitle.textContent = 'Create Account';
+        authSubtitle.textContent = 'Start syncing your apps across devices.';
+        authSubmitBtn.textContent = 'Register';
+        authToggleText.textContent = "Already have an account?";
+        authToggleLink.textContent = "Sign in";
+    }
+});
+
+authForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const email = document.getElementById('auth-email').value;
+    const password = document.getElementById('auth-password').value;
+
+    authSubmitBtn.textContent = isLoginMode ? 'Signing In...' : 'Registering...';
+    authSubmitBtn.disabled = true;
+    authError.classList.add('hidden');
+
+    try {
+        if (isLoginMode) {
+            await signInWithEmailAndPassword(auth, email, password);
+        } else {
+            const cred = await createUserWithEmailAndPassword(auth, email, password);
+            // Upload current apps on register
+            await setDoc(doc(db, "users", cred.user.uid), { apps });
+        }
+        authForm.reset();
+        // UI naturally updates via onAuthStateChanged
+    } catch (error) {
+        authError.textContent = error.message;
+        authError.classList.remove('hidden');
+    } finally {
+        authSubmitBtn.disabled = false;
+        authSubmitBtn.textContent = isLoginMode ? 'Sign In' : 'Register';
+    }
+});
+
+logoutBtn.addEventListener('click', async () => {
+    logoutBtn.textContent = "Signing Out...";
+    logoutBtn.disabled = true;
+
+    try {
+        await signOut(auth);
+    } catch (e) {
+        console.error("Logout failed:", e);
+    }
+
+    logoutBtn.textContent = "Sign Out";
+    logoutBtn.disabled = false;
+});
+
+// Close modals when clicking outside
+[modal, authModal].forEach(m => {
+    m.addEventListener('click', (e) => {
+        if (e.target === m) {
+            m.classList.add('hidden');
+            if (m === modal) addAppForm.reset();
+            if (window.electronAPI) window.electronAPI.showActiveApp();
+        }
+    });
 });
 
 // Initial load

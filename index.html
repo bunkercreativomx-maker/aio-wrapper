@@ -17,7 +17,7 @@
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <div class="logo">AiO</div>
+                <div class="logo">Wrapper One</div>
             </div>
 
             <ul id="app-list" class="app-list">
@@ -30,6 +30,12 @@
                         <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
                     </svg>
                 </button>
+                <button id="auth-btn" class="icon-btn" title="Account & Sync">
+                    <svg viewBox="0 0 24 24" width="22" height="22">
+                        <path fill="currentColor"
+                            d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                    </svg>
+                </button>
             </div>
         </aside>
 
@@ -40,7 +46,7 @@
 
             <div id="welcome-screen" class="welcome-screen">
                 <div class="welcome-icon">🚀</div>
-                <h1>Welcome to AiO</h1>
+                <h1>Welcome to Wrapper One</h1>
                 <p>Select an app from the sidebar or add a new one.</p>
             </div>
         </main>
@@ -72,7 +78,53 @@
         </div>
     </div>
 
-    <script src="renderer.js"></script>
+    <!-- Modal for Authentication (Login / Register) -->
+    <div id="auth-modal" class="modal hidden">
+        <div class="modal-content auth-content">
+
+            <form id="auth-form">
+                <h2 id="auth-title">Sign In to Sync</h2>
+                <p class="auth-subtitle" id="auth-subtitle">Save your workspace to the cloud.</p>
+
+                <div class="form-group">
+                    <label for="auth-email">Email</label>
+                    <input type="email" id="auth-email" required placeholder="you@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="auth-password">Password</label>
+                    <input type="password" id="auth-password" required placeholder="••••••••">
+                </div>
+
+                <div id="auth-error" class="auth-error hidden"></div>
+
+                <div class="modal-actions auth-actions">
+                    <button type="submit" class="btn primary full-width" id="auth-submit-btn">Sign In</button>
+                </div>
+
+                <div class="auth-toggle">
+                    <span id="auth-toggle-text">Don't have an account?</span>
+                    <a href="#" id="auth-toggle-link">Create one</a>
+                </div>
+            </form>
+
+            <!-- Account Info View (Shown when logged in) -->
+            <div id="account-info" class="hidden">
+                <h2 id="account-title">Account</h2>
+                <div class="avatar-circle">
+                    <span id="avatar-initial">U</span>
+                </div>
+                <h3 id="logged-in-email">user@example.com</h3>
+                <p class="sync-status">✅ Your workspace is synced to the cloud.</p>
+                <div class="modal-actions auth-actions">
+                    <button type="button" id="logout-btn" class="btn secondary full-width">Sign Out</button>
+                </div>
+            </div>
+
+            <button type="button" id="close-auth-btn" class="close-modal-btn">&times;</button>
+        </div>
+    </div>
+
+    <script type="module" src="renderer.js"></script>
 </body>
 
 </html>
