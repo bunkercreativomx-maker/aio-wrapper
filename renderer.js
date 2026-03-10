@@ -386,6 +386,12 @@ logoutBtn.addEventListener('click', async () => {
 async function init() {
     if (window.electronAPI) {
         apps = await window.electronAPI.getApps();
+        const version = await window.electronAPI.getVersion();
+        const versionEl = document.getElementById('app-version');
+        if (versionEl) {
+            versionEl.textContent = `v${version}`;
+            versionEl.title = `WrapperOne v${version}`;
+        }
     }
     renderApps();
 }

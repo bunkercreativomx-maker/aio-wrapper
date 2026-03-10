@@ -27,6 +27,16 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
 
+    // Handle Reload shortcut
+    mainWindow.webContents.on('before-input-event', (event, input) => {
+        if ((input.control || input.meta) && input.key.toLowerCase() === 'r') {
+            if (activeAppId && views[activeAppId]) {
+                views[activeAppId].webContents.reload();
+                event.preventDefault();
+            }
+        }
+    });
+
     // Handle window resize to resize active view
     mainWindow.on('resize', () => {
         if (activeAppId && views[activeAppId]) {
@@ -80,6 +90,7 @@ app.whenReady().then(async () => {
     // --- IPC Handlers for Data Sync ---
 
     ipcMain.handle('get-apps', () => store.get('apps'));
+    ipcMain.handle('get-version', () => app.getVersion());
 
     ipcMain.on('save-apps', (event, apps) => {
         store.set('apps', apps);
@@ -186,6 +197,14 @@ ipcMain.on('switch-app', (event, { id, url }) => {
         view.webContents.setWindowOpenHandler(({ url }) => {
             require('electron').shell.openExternal(url);
             return { action: 'deny' };
+        });
+
+        // Handle Reload shortcut for the active view
+        view.webContents.on('before-input-event', (event, input) => {
+            if ((input.control || input.meta) && input.key.toLowerCase() === 'r') {
+                view.webContents.reload();
+                event.preventDefault();
+            }
         });
 
         // Add basic context menu (Copy, Paste, etc.)

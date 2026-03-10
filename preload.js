@@ -6,5 +6,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     hideActiveApp: () => ipcRenderer.send('hide-active-app'),
     showActiveApp: () => ipcRenderer.send('show-active-app'),
     getApps: () => ipcRenderer.invoke('get-apps'),
+    getVersion: () => ipcRenderer.invoke('get-version'),
     saveApps: (apps) => ipcRenderer.send('save-apps', apps)
 });
