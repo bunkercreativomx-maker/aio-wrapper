@@ -116,6 +116,19 @@ function resizeView(view) {
     });
 }
 
+// On Linux/Wayland the compositor can take a few frames to settle the window size after
+// a view is shown, so a single immediate setBounds can be overwritten (leaving the native
+// view full-screen and covering the HTML dock). Retry with staggered delays to be safe.
+function resizeViewRobust(view) {
+    if (!view) return;
+    const tries = [0, 80, 250, 600];
+    tries.forEach((ms) => {
+        setTimeout(() => {
+            if (views[activeAppId] === view) resizeView(view);
+        }, ms);
+    });
+}
+
 const MODERN_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36';
 
 app.commandLine.appendSwitch('disable-features', 'SecCHUA,SecCHUAMobile,SecCHUAPlatform');
@@ -293,7 +306,7 @@ ipcMain.on('switch-app', (event, { id, url }) => {
         // Some web apps resize/scroll on load; make sure the view never ends up covering the dock.
         view.webContents.on('did-finish-load', () => {
             setImmediate(() => {
-                if (views[id]) resizeView(views[id]);
+                if (views[id]) resizeViewRobust(views[id]);
             });
         });
     }
@@ -315,7 +328,7 @@ ipcMain.on('switch-app', (event, { id, url }) => {
         mainWindow.contentView.addChildView(newView); // Bring to front
     } catch (e) { }
 
-    resizeView(newView);
+    resizeViewRobust(newView);
 });
 
 ipcMain.on('remove-app', (event, id) => {
@@ -344,7 +357,7 @@ ipcMain.on('show-active-app', () => {
     if (activeAppId && views[activeAppId] && isAppHidden) {
         try {
             mainWindow.contentView.addChildView(views[activeAppId]);
-            resizeView(views[activeAppId]);
+            resizeViewRobust(views[activeAppId]);
             isAppHidden = false;
         } catch (e) { }
     }
