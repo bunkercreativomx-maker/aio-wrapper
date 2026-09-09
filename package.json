@@ -1,6 +1,6 @@
 {
     "name": "wrapper-one",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "description": "WrapperOne - All-in-One Web Workspace",
     "main": "main.js",
     "scripts": {
@@ -31,6 +31,14 @@
         "win": {
             "target": "nsis",
             "icon": "icon.ico"
+        },
+        "linux": {
+            "target": [
+                "AppImage"
+            ],
+            "category": "Network",
+            "icon": "build/icon.png",
+            "maintainer": "pakov"
         },
         "nsis": {
             "oneClick": false,

@@ -61,3 +61,49 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME:-${{ github.event.inputs.version }}}"
           gh release edit "$TAG" --draft=false || echo "no draft release to publish"
+
+  # Linux / Omarchy build: publishes AppImage + latest-linux.yml so the same auto-updater
+  # flow works on Linux. Built on Ubuntu (electron-builder cross-packages AppImage there).
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Verify tag matches package.json version
+        run: |
+          PKG_VER=$(node -p "require('./package.json').version")
+          if [ "${{ github.event_name }}" = "push" ]; then
+            TAG_VER="${GITHUB_REF_NAME#v}"
+          else
+            TAG_VER="${{ github.event.inputs.version }}"
+          fi
+          if [ "$PKG_VER" != "$TAG_VER" ]; then
+            echo "::error:: package.json version ($PKG_VER) does not match tag ($TAG_VER)"
+            exit 1
+          fi
+          echo "Releasing v$PKG_VER"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # libfuse2 is needed by electron-builder to run/mount AppImages on Ubuntu 24 runners.
+      - name: Install AppImage tooling
+        run: sudo apt-get update && sudo apt-get install -y libfuse2
+
+      - name: Build AppImage and publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --linux AppImage --publish always
+
+      - name: Ensure release is published (not draft)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME:-${{ github.event.inputs.version }}}"
+          gh release edit "$TAG" --draft=false || echo "no draft release to publish"
