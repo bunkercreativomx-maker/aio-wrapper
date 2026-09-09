@@ -14,6 +14,10 @@ on:
         description: 'Version to release (must already be in package.json), e.g. 1.0.4'
         required: true
 
+# Allow the workflow to create/update GitHub Releases (electron-builder publish step)
+permissions:
+  contents: write
+
 jobs:
   build-windows:
     runs-on: windows-latest
@@ -22,7 +26,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Verify tag matches package.json version
