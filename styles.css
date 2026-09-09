@@ -29,6 +29,15 @@ body {
     overflow: hidden;
 }
 
+/* Column flex so topbar / stage / dockbar lay out top-to-bottom and the dock is
+   always pinned to the bottom of the window (in front of the native web view's
+   reserved region). Without this the dockbar flows after the collapsed stage and
+   ends up hidden behind the web view. */
+body {
+    display: flex;
+    flex-direction: column;
+}
+
 /* interactive elements must not swallow the drag region */
 button,
 input,
@@ -120,13 +129,10 @@ input,
 .stage {
     flex: 1;
     position: relative;
-    margin: 0 8px;
-    border-radius: 18px;
     overflow: hidden;
     background:
         radial-gradient(1100px 460px at 72% -8%, var(--accent-soft), transparent 62%),
         linear-gradient(180deg, #15171c, #0d0e11);
-    border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .welcome-screen {
