@@ -22,25 +22,35 @@ if (!gotTheLock) {
     });
 }
 
-// Windows taskbar/tray grouping + proper app identity (needed so the logo shows)
-app.setAppUserModelId('com.pakov.wrapperone');
+// Windows-only: groups the taskbar icon + enables tray logo. No-op on Linux/macOS,
+// so guard it so nothing Windows-specific runs elsewhere.
+const IS_WIN = process.platform === 'win32';
+if (IS_WIN) {
+    app.setAppUserModelId('com.pakov.wrapperone');
+}
 
 function createWindow() {
-    mainWindow = new BrowserWindow({
+    // Frameless on every platform so our HTML chrome (topbar / stage / dock) is consistent.
+    const winOptions = {
         width: 1200,
         height: 800,
         titleBarStyle: 'hidden',
-        titleBarOverlay: {
-            color: '#0b0c0e', // Matches --bg (deep dark, Omarchy-style)
-            symbolColor: '#f4f5f7',
-            height: 28
-        },
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             contextIsolation: true,
             nodeIntegration: false
         }
-    });
+    };
+    if (IS_WIN) {
+        // Windows draws native min/max/close over our slim topbar; other platforms get
+        // our own in-HTML window controls (see renderer.js) instead.
+        winOptions.titleBarOverlay = {
+            color: '#0b0c0e', // Matches --bg (deep dark, Omarchy-style)
+            symbolColor: '#f4f5f7',
+            height: 28
+        };
+    }
+    mainWindow = new BrowserWindow(winOptions);
     mainWindow.setIcon(path.join(__dirname, 'icon.png'));
 
     mainWindow.loadFile('index.html');
@@ -62,9 +72,10 @@ function createWindow() {
         }
     });
 
-    // Minimize to tray instead of quitting
+    // Minimize to tray instead of quitting (Windows idiom). On Linux/macOS a normal
+    // close is expected, so let the window actually close there.
     mainWindow.on('close', function (event) {
-        if (!isQuitting) {
+        if (IS_WIN && !isQuitting) {
             event.preventDefault();
             mainWindow.hide();
             event.returnValue = false;
@@ -112,6 +123,16 @@ if (gotTheLock) app.whenReady().then(async () => {
 
     ipcMain.handle('get-apps', () => store.get('apps'));
     ipcMain.handle('get-version', () => app.getVersion());
+    ipcMain.handle('get-platform', () => process.platform);
+
+    // In-HTML window controls (used on Linux/macOS, where there is no native titlebar overlay)
+    ipcMain.on('win-minimize', () => { if (mainWindow) mainWindow.minimize(); });
+    ipcMain.on('win-maximize-toggle', () => {
+        if (!mainWindow) return;
+        if (mainWindow.isMaximized()) mainWindow.unmaximize();
+        else mainWindow.maximize();
+    });
+    ipcMain.on('win-close', () => { if (mainWindow) mainWindow.close(); });
 
     ipcMain.on('save-apps', (event, apps) => {
         store.set('apps', apps);

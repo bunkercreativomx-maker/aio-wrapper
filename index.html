@@ -10,11 +10,17 @@
 </head>
 
 <body>
-    <!-- Top bar: drag region + brand; native window controls draw top-right -->
+    <!-- Top bar: drag region + brand; native window controls draw top-right on Windows -->
     <header class="topbar">
         <div class="brand">
             <span class="mark">W</span>
             WrapperOne <span class="sub">· web workspace</span>
+        </div>
+        <!-- Our own window controls, shown only on non-Windows (no native overlay there) -->
+        <div id="win-controls" class="win-controls hidden">
+            <button id="win-min" class="win-btn" title="Minimize">—</button>
+            <button id="win-max" class="win-btn" title="Maximize">□</button>
+            <button id="win-close" class="win-btn win-close" title="Close">✕</button>
         </div>
     </header>
 

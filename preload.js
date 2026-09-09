@@ -7,5 +7,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
     showActiveApp: () => ipcRenderer.send('show-active-app'),
     getApps: () => ipcRenderer.invoke('get-apps'),
     getVersion: () => ipcRenderer.invoke('get-version'),
-    saveApps: (apps) => ipcRenderer.send('save-apps', apps)
+    getPlatform: () => ipcRenderer.invoke('get-platform'),
+    saveApps: (apps) => ipcRenderer.send('save-apps', apps),
+    // In-HTML window controls (used on non-Windows)
+    windowMinimize: () => ipcRenderer.send('win-minimize'),
+    windowMaximizeToggle: () => ipcRenderer.send('win-maximize-toggle'),
+    windowClose: () => ipcRenderer.send('win-close')
 });

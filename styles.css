@@ -77,6 +77,45 @@ input,
     font-weight: 400;
 }
 
+/* In-HTML window controls (non-Windows platforms) — pinned top-right, clickable */
+.win-controls.hidden {
+    display: none;
+}
+
+.win-controls {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    -webkit-app-region: no-drag;
+}
+
+.win-btn {
+    width: 36px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: inherit;
+}
+
+.win-btn:hover {
+    background: rgba(255, 255, 255, 0.09);
+    color: var(--text);
+}
+
+.win-btn.win-close:hover {
+    background: #e81123;
+    color: #fff;
+}
+
 /* ---------- Stage: full-bleed web app / welcome backdrop ---------- */
 .stage {
     flex: 1;

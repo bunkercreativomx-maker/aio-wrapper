@@ -392,8 +392,24 @@ async function init() {
             versionEl.textContent = `v${version}`;
             versionEl.title = `WrapperOne v${version}`;
         }
+        // Show our in-HTML window controls on platforms without a native titlebar overlay
+        try {
+            const platform = await window.electronAPI.getPlatform();
+            const wc = document.getElementById('win-controls');
+            if (wc && platform !== 'win32') wc.classList.remove('hidden');
+        } catch (e) { /* ignore */ }
     }
     renderApps();
+}
+
+// Wire the in-HTML window controls (non-Windows)
+const winMinBtn = document.getElementById('win-min');
+const winMaxBtn = document.getElementById('win-max');
+const winCloseBtn = document.getElementById('win-close');
+if (winMinBtn && window.electronAPI) {
+    winMinBtn.addEventListener('click', () => window.electronAPI.windowMinimize());
+    winMaxBtn.addEventListener('click', () => window.electronAPI.windowMaximizeToggle());
+    winCloseBtn.addEventListener('click', () => window.electronAPI.windowClose());
 }
 
 init();
