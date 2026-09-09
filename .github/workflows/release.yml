@@ -1,8 +1,13 @@
 name: Release
 
-# Builds the Windows installer and publishes it (exe + latest.yml) to a GitHub Release
-# whenever a version tag like v1.0.4 is pushed. electron-updater then auto-updates
-# installed apps. Tag name MUST equal the version in package.json (with leading "v").
+# Builds the Windows installer and the Linux AppImage and publishes them to a GitHub Release
+# whenever a version tag like v1.0.9 is pushed. electron-updater then auto-updates installed
+# apps. Tag name MUST equal the version in package.json (with leading "v").
+#
+# IMPORTANT: electron-builder only uploads assets to a release that is still a DRAFT, and it
+# refuses to touch an existing PUBLISHED release with the same tag. So neither build job may
+# publish. Each job uploads its platform's assets to the same draft, then a final `publish`
+# job (which waits for both) flips the draft to published exactly once.
 
 on:
   push:
@@ -11,26 +16,21 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (must already be in package.json), e.g. 1.0.4'
+        description: 'Version to release (must already be in package.json), e.g. 1.0.9'
         required: true
 
-# Allow the workflow to create/update GitHub Releases (electron-builder publish step)
 permissions:
   contents: write
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  verify-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Verify tag matches package.json version
-        shell: bash
+      - name: Check tag matches package.json version
+        id: v
         run: |
           PKG_VER=$(node -p "require('./package.json').version")
           if [ "${{ github.event_name }}" = "push" ]; then
@@ -42,71 +42,55 @@ jobs:
             echo "::error:: package.json version ($PKG_VER) does not match tag ($TAG_VER)"
             exit 1
           fi
+          echo "version=$PKG_VER"
           echo "Releasing v$PKG_VER"
 
+  build-windows:
+    needs: verify-version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
       - name: Install dependencies
         run: npm ci
-
-      - name: Build installer and publish release
+      - name: Build Windows installer (uploads to draft release)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run dist -- --publish always
 
-      # electron-builder can leave the release as a draft (assets under an "untagged" URL),
-      # which breaks electron-updater. Publish it so downloads resolve to /download/<tag>/.
-      - name: Ensure release is published (not draft)
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="${GITHUB_REF_NAME:-${{ github.event.inputs.version }}}"
-          gh release edit "$TAG" --draft=false || echo "no draft release to publish"
-
-  # Linux / Omarchy build: publishes AppImage + latest-linux.yml so the same auto-updater
-  # flow works on Linux. Built on Ubuntu (electron-builder cross-packages AppImage there).
-  # NOTE: depends on build-windows so both electron-builder publish steps never race on the
-  # same tag/release (concurrent publishes to one tag drop the other platform's assets).
   build-linux:
-    runs-on: ubuntu-latest
     needs: build-windows
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-
-      - name: Verify tag matches package.json version
-        run: |
-          PKG_VER=$(node -p "require('./package.json').version")
-          if [ "${{ github.event_name }}" = "push" ]; then
-            TAG_VER="${GITHUB_REF_NAME#v}"
-          else
-            TAG_VER="${{ github.event.inputs.version }}"
-          fi
-          if [ "$PKG_VER" != "$TAG_VER" ]; then
-            echo "::error:: package.json version ($PKG_VER) does not match tag ($TAG_VER)"
-            exit 1
-          fi
-          echo "Releasing v$PKG_VER"
-
       - name: Install dependencies
         run: npm ci
-
       # libfuse2 is needed by electron-builder to run/mount AppImages on Ubuntu 24 runners.
       - name: Install AppImage tooling
         run: sudo apt-get update && sudo apt-get install -y libfuse2
-
-      - name: Build AppImage and publish release
+      - name: Build Linux AppImage (uploads to draft release)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx electron-builder --linux AppImage --publish always
 
-      - name: Ensure release is published (not draft)
-        shell: bash
+  # Waits for both platform builds, then publishes the draft release exactly once so
+  # downloads resolve to /download/<tag>/ (required for electron-updater).
+  publish:
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF_NAME:-${{ github.event.inputs.version }}}"
-          gh release edit "$TAG" --draft=false || echo "no draft release to publish"
+          gh release edit "$TAG" --draft=false
+          echo "Published $TAG"
+          gh release view "$TAG" --json tagName,isDraft,assets --jq '{tag: .tagName, draft: .isDraft, assets: [.assets[].name]}'
