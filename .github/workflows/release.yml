@@ -55,6 +55,7 @@ jobs:
       # electron-builder can leave the release as a draft (assets under an "untagged" URL),
       # which breaks electron-updater. Publish it so downloads resolve to /download/<tag>/.
       - name: Ensure release is published (not draft)
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
