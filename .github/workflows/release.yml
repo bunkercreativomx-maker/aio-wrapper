@@ -86,6 +86,8 @@ jobs:
     needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     steps:
+      # gh needs a git repo to resolve the tag, so check out first.
+      - uses: actions/checkout@v4
       - name: Publish draft release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
