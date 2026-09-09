@@ -31,8 +31,8 @@ function createWindow() {
         height: 800,
         titleBarStyle: 'hidden',
         titleBarOverlay: {
-            color: '#0f1115', // Matches --bg-dark (Main app body color)
-            symbolColor: '#f1f2f6',
+            color: '#0b0c0e', // Matches --bg (deep dark, Omarchy-style)
+            symbolColor: '#f4f5f7',
             height: 28
         },
         webPreferences: {
@@ -74,15 +74,16 @@ function createWindow() {
 
 function resizeView(view) {
     const bounds = mainWindow.getContentBounds();
-    const sidebarWidth = 80; // Must match CSS --sidebar-width
-    // On Windows, bounds.height might include the window frame if not fully frameless. 
-    // But getContentBounds gives inner size.
-    const titleBarHeight = 28; // Matching titleBarOverlay height in createWindow
+    // Layout: a slim top bar (native title controls) + full-bleed web app + bottom dock.
+    // The web app (WebContentsView) must stop where the HTML dock begins so the dock stays
+    // clickable and visible above it. Keep these in sync with CSS --titlebar-h / --dock-h.
+    const TITLEBAR_H = 34;
+    const DOCK_H = 84;
     view.setBounds({
-        x: sidebarWidth,
-        y: titleBarHeight,
-        width: bounds.width - sidebarWidth,
-        height: bounds.height - titleBarHeight
+        x: 0,
+        y: TITLEBAR_H,
+        width: bounds.width,
+        height: bounds.height - TITLEBAR_H - DOCK_H
     });
 }
 

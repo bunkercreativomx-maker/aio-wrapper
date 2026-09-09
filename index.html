@@ -1,57 +1,55 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AiO Web Wrapper</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;800&display=swap" rel="stylesheet">
+    <title>Wrapper One</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
-    <!-- Titlebar drag region for frameless window -->
-    <div id="drag-region"></div>
+    <!-- Top bar: drag region + brand; native window controls draw top-right -->
+    <header class="topbar">
+        <div class="brand">
+            <span class="mark">W</span>
+            WrapperOne <span class="sub">· web workspace</span>
+        </div>
+    </header>
 
-    <div class="app-container">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <div class="logo">Wrapper One</div>
-            </div>
+    <!-- Full-bleed web app area (WebContentsView overlaps this region when active) -->
+    <main class="stage">
+        <div id="welcome-screen" class="welcome-screen">
+            <div class="welcome-icon">🚀</div>
+            <h1>Wrapper One</h1>
+            <p>Selecciona una app del dock para abrirla a pantalla completa.</p>
+        </div>
+    </main>
 
-            <ul id="app-list" class="app-list">
-                <!-- Apps injected by JS -->
-            </ul>
+    <!-- Floating dock -->
+    <nav class="dockbar">
+        <div id="app-version" class="app-version">v0.0.0</div>
 
-            <div class="sidebar-footer">
-                <div id="app-version" class="app-version" title="App Version">v1.0.0</div>
-                <button id="add-app-btn" class="icon-btn" title="Add New App">
-                    <svg viewBox="0 0 24 24" width="24" height="24">
-                        <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                    </svg>
-                </button>
-                <button id="auth-btn" class="icon-btn" title="Account & Sync">
-                    <svg viewBox="0 0 24 24" width="22" height="22">
-                        <path fill="currentColor"
-                            d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                    </svg>
-                </button>
-            </div>
-        </aside>
+        <ul id="app-list" class="app-list">
+            <!-- Apps injected by JS -->
+        </ul>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Background filler for native window controls (28px height) -->
-            <div class="title-bar-filler"></div>
-
-            <div id="welcome-screen" class="welcome-screen">
-                <div class="welcome-icon">🚀</div>
-                <h1>Welcome to Wrapper One</h1>
-                <p>Select an app from the sidebar or add a new one.</p>
-            </div>
-        </main>
-    </div>
+        <div class="dock-actions">
+            <span class="sep"></span>
+            <button id="add-app-btn" class="icon-btn" title="Add Web App">
+                <svg viewBox="0 0 24 24" width="18" height="18">
+                    <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                </svg>
+            </button>
+            <button id="auth-btn" class="icon-btn" title="Account & Sync">
+                <svg viewBox="0 0 24 24" width="18" height="18">
+                    <path fill="currentColor"
+                        d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                </svg>
+            </button>
+        </div>
+    </nav>
 
     <!-- Modal for adding/editing apps -->
     <div id="add-app-modal" class="modal hidden">
@@ -82,7 +80,6 @@
     <!-- Modal for Authentication (Login / Register) -->
     <div id="auth-modal" class="modal hidden">
         <div class="modal-content auth-content">
-
             <form id="auth-form">
                 <h2 id="auth-title">Sign In to Sync</h2>
                 <p class="auth-subtitle" id="auth-subtitle">Save your workspace to the cloud.</p>
