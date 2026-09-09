@@ -8,6 +8,23 @@ let isAppHidden = false;
 let tray = null;
 let isQuitting = false;
 
+// --- Single instance: reopening the app restores the existing window instead of spawning a new one ---
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+    app.quit();
+} else {
+    app.on('second-instance', () => {
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.show();
+            mainWindow.focus();
+        }
+    });
+}
+
+// Windows taskbar/tray grouping + proper app identity (needed so the logo shows)
+app.setAppUserModelId('com.pakov.wrapperone');
+
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1200,
@@ -24,6 +41,7 @@ function createWindow() {
             nodeIntegration: false
         }
     });
+    mainWindow.setIcon(path.join(__dirname, 'icon.png'));
 
     mainWindow.loadFile('index.html');
 
@@ -71,7 +89,7 @@ function resizeView(view) {
 app.commandLine.appendSwitch('disable-features', 'SecCHUA,SecCHUAMobile,SecCHUAPlatform');
 app.userAgentFallback = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
 
-app.whenReady().then(async () => {
+if (gotTheLock) app.whenReady().then(async () => {
     const { default: Store } = await import('electron-store');
     store = new Store();
 
@@ -99,10 +117,17 @@ app.whenReady().then(async () => {
     createWindow();
 
     // Create Tray
-    // A simple purple square as a fallback native image icon (16x16)
-    const base64Icon = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAABDSURBVDhPY3jMwPCfEkw1GAWjBgw1AGhgN1MwNBoYxRDk/s8w/y+mIQxgSsgYnE5jGH0AkcNoIIyGMDEYpRhGzWAAAIf+L+C0zwhlAAAAAElFTkSuQmCC';
-    const icon = nativeImage.createFromDataURL(`data:image/png;base64,${base64Icon}`);
-    tray = new Tray(icon);
+    // Prefer a real logo icon (icon.png) shipped with the app; fall back to a solid square.
+    const ICON_SIZES = [16, 24, 32];
+    const iconPath = path.join(__dirname, 'icon.png');
+    let icon = nativeImage.createFromPath(iconPath);
+    if (icon.isEmpty()) {
+        const base64Icon = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAABDSURBVDhPY3jMwPCfEkw1GAWjBgw1AGhgN1MwNBoYxRDk/s8w/y+mIQxgSsgYnE5jGH0AkcNoIIyGMDEYpRhGzWAAAIf+L+C0zwhlAAAAAElFTkSuQmCC';
+        icon = nativeImage.createFromDataURL(`data:image/png;base64,${base64Icon}`);
+    }
+    // Windows draws the tray at several sizes; give it the highest-res copy available.
+    const trayImage = ICON_SIZES.map(sz => icon.resize({ width: sz, height: sz })).reduce((best, img) => img.getSize().width > best.getSize().width ? img : best);
+    tray = new Tray(trayImage);
     const contextMenu = Menu.buildFromTemplate([
         { label: 'Show App', click: function () { mainWindow.show(); } },
         {
