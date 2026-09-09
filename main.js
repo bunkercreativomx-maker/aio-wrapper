@@ -55,6 +55,24 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
 
+    // Re-frame the active web view once the window is actually shown/painted and whenever
+    // its size settles, so the native view never overlaps the HTML dock at the bottom.
+    const scheduleResize = () => {
+        if (!activeAppId || !views[activeAppId]) return;
+        // Let the layout settle before measuring.
+        setImmediate(() => {
+            if (activeAppId && views[activeAppId]) resizeView(views[activeAppId]);
+        });
+        setTimeout(() => {
+            if (activeAppId && views[activeAppId]) resizeView(views[activeAppId]);
+        }, 60);
+    };
+    mainWindow.once('ready-to-show', scheduleResize);
+    mainWindow.on('show', scheduleResize);
+    mainWindow.on('maximize', scheduleResize);
+    mainWindow.on('unmaximize', scheduleResize);
+    mainWindow.on('restore', scheduleResize);
+
     // Handle Reload shortcut
     mainWindow.webContents.on('before-input-event', (event, input) => {
         if ((input.control || input.meta) && input.key.toLowerCase() === 'r') {
@@ -271,6 +289,13 @@ ipcMain.on('switch-app', (event, { id, url }) => {
         });
 
         view.webContents.loadURL(url);
+
+        // Some web apps resize/scroll on load; make sure the view never ends up covering the dock.
+        view.webContents.on('did-finish-load', () => {
+            setImmediate(() => {
+                if (views[id]) resizeView(views[id]);
+            });
+        });
     }
 
     // Remove existing active view from display
