@@ -87,8 +87,10 @@ function resizeView(view) {
     });
 }
 
+const MODERN_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36';
+
 app.commandLine.appendSwitch('disable-features', 'SecCHUA,SecCHUAMobile,SecCHUAPlatform');
-app.userAgentFallback = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+app.userAgentFallback = MODERN_UA;
 
 if (gotTheLock) app.whenReady().then(async () => {
     const { default: Store } = await import('electron-store');
@@ -200,7 +202,7 @@ ipcMain.on('switch-app', (event, { id, url }) => {
         mainWindow.contentView.addChildView(view);
         // Set a modern Chrome User-Agent before loading URL to prevent blocks (e.g., WhatsApp)
         // Also apply it to network requests to prevent Google Sign-In blocks
-        const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
+        const userAgent = MODERN_UA;
         view.webContents.setUserAgent(userAgent);
 
         view.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
