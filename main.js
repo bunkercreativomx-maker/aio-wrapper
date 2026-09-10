@@ -2,13 +2,13 @@ const { app, BrowserWindow, WebContentsView, ipcMain, Tray, Menu, nativeImage, d
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const path = require('path');
-const { spawn } = require('child_process');
 
-// --- Google apps: do NOT embed -----------------------------------------------
 // Google refuses sign-in from browsers "embedded in a different application"
-// (https://support.google.com/accounts/answer/7675428) and tells developers to use a
-// real supported browser. So for Google-hosted apps we hand off to the system browser in
-// app mode (the same thing Omarchy's own `omarchy-launch-webapp` does) instead of embedding.
+// (https://support.google.com/accounts/answer/7675428). Google CAN detect Electron when the
+// User-Agent claims to be Chrome/Chromium — but the check does not fire when the UA claims to be
+// Firefox (documented technique, used by the Wexond Electron browser:
+// https://stackoverflow.com/a/68231284). So Google-hosted apps stay embedded, but we present a
+// Firefox UA (and no sec-ch-ua client hints, which Firefox doesn't send) for their session.
 const GOOGLE_APP_HOSTS = [
     'accounts.google.com',
     'mail.google.com',
@@ -18,7 +18,8 @@ const GOOGLE_APP_HOSTS = [
     'docs.google.com',
     'photos.google.com',
     'meet.google.com',
-    'keep.google.com'
+    'keep.google.com',
+    'google.com'
 ];
 
 function isGoogleHost(url) {
@@ -30,27 +31,12 @@ function isGoogleHost(url) {
     }
 }
 
-// Open a URL in the user's real (supported) browser, as an app window when possible.
-// Prefers Omarchy's native launcher so we behave exactly like Omarchy web apps.
-function openInSupportedBrowser(url) {
-    if (process.platform !== 'linux') {
-        shell.openExternal(url);
-        return;
-    }
-    // 1) Omarchy native web-app launcher (uses the default supported browser, --app mode)
-    const launcher = spawn('omarchy-launch-webapp', [url], { detached: true, stdio: 'ignore' });
-    launcher.on('error', () => {
-        // 2) Plain Chromium/Chrome app window
-        const chromium = spawn('chromium', ['--app=' + url], { detached: true, stdio: 'ignore' });
-        chromium.on('error', () => {
-            const chrome = spawn('google-chrome', ['--app=' + url], { detached: true, stdio: 'ignore' });
-            chrome.on('error', () => shell.openExternal(url));
-            chrome.unref();
-        });
-        chromium.unref();
-    });
-    launcher.unref();
-}
+// Firefox UA per platform (the value that makes Google skip its embedded-browser check).
+const FIREFOX_UA = {
+    win32: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0',
+    linux: 'Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0',
+    darwin: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:132.0) Gecko/20100101 Firefox/132.0'
+}[process.platform] || 'Mozilla/5.0 (X11; Linux x86_64; rv:132.0) Gecko/20100101 Firefox/132.0';
 
 // Detached launches (e.g. an AppImage started from the desktop launcher, not a terminal)
 // have a closed stdout/stderr pipe. electron-log's console transport then throws EPIPE and
@@ -323,14 +309,6 @@ app.on('window-all-closed', function () {
 
 // Manage views via IPC
 ipcMain.on('switch-app', (event, { id, url }) => {
-    // Google-hosted apps can't be embedded (Google blocks sign-in for embedded browsers),
-    // so hand them to the real browser in app mode instead of showing a blocked page.
-    if (isGoogleHost(url)) {
-        openInSupportedBrowser(url);
-        if (mainWindow) mainWindow.webContents.send('opened-external', { id, url });
-        return;
-    }
-
     if (activeAppId === id) return; // Already active
 
     // Create view if it doesn't exist
@@ -342,19 +320,26 @@ ipcMain.on('switch-app', (event, { id, url }) => {
         });
         views[id] = view;
         mainWindow.contentView.addChildView(view);
-        // Set a modern Chrome User-Agent before loading URL to prevent blocks (e.g., WhatsApp)
-        // Also apply it to network requests to prevent Google Sign-In blocks
-        const userAgent = MODERN_UA;
+
+        // Choose the identity for this app's session:
+        //  - Google apps: Firefox UA (Google's embedded-browser check doesn't fire for Firefox),
+        //    and NO sec-ch-ua headers (Firefox doesn't send them, so that stays consistent).
+        //  - Everything else: a modern Chrome UA with matching sec-ch-ua client hints.
+        const isGoogle = isGoogleHost(url);
+        const userAgent = isGoogle ? FIREFOX_UA : MODERN_UA;
         view.webContents.setUserAgent(userAgent);
 
         view.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
-            // Present a fully consistent modern Chrome. Deleting the client-hint headers while
-            // claiming to be Chrome is itself a bot signal (real Chrome always sends them), so
-            // set them to match the UA instead of removing them.
             details.requestHeaders['User-Agent'] = userAgent;
-            details.requestHeaders['sec-ch-ua'] = SEC_CH_UA;
-            details.requestHeaders['sec-ch-ua-mobile'] = '?0';
-            details.requestHeaders['sec-ch-ua-platform'] = CH_PLATFORM[process.platform] || '"Linux"';
+            if (isGoogle) {
+                delete details.requestHeaders['sec-ch-ua'];
+                delete details.requestHeaders['sec-ch-ua-mobile'];
+                delete details.requestHeaders['sec-ch-ua-platform'];
+            } else {
+                details.requestHeaders['sec-ch-ua'] = SEC_CH_UA;
+                details.requestHeaders['sec-ch-ua-mobile'] = '?0';
+                details.requestHeaders['sec-ch-ua-platform'] = CH_PLATFORM[process.platform] || '"Linux"';
+            }
             callback({ requestHeaders: details.requestHeaders });
         });
 
@@ -373,36 +358,52 @@ ipcMain.on('switch-app', (event, { id, url }) => {
             'slack.com'
         ];
         view.webContents.setWindowOpenHandler(({ url }) => {
-            // Google auth/app popups can't complete inside an embedded browser — hand them to
-            // the real (supported) browser.
-            if (isGoogleHost(url)) {
-                openInSupportedBrowser(url);
-                return { action: 'deny' };
-            }
-
             let isAuth = false;
             try {
                 const host = new URL(url).hostname;
                 isAuth = AUTH_HOSTS.some((h) => host === h || host.endsWith('.' + h));
             } catch (e) { /* not a URL we can parse */ }
 
-            if (isAuth) {
-                // Load the login flow in THIS view instead of spawning a separate window,
-                // so the user stays inside the app (no external/popup window).
-                view.webContents.loadURL(url);
-                return { action: 'deny' };
+            if (isGoogleHost(url) || isAuth) {
+                // Keep login flows inside the app (allow) instead of booting the user out.
+                return {
+                    action: 'allow',
+                    overrideBrowserWindowOptions: {
+                        width: 520,
+                        height: 680,
+                        autoHideMenuBar: true,
+                        webPreferences: {
+                            partition: `persist:${id}`,
+                            contextIsolation: true,
+                            nodeIntegration: false
+                        }
+                    }
+                };
             }
 
             require('electron').shell.openExternal(url);
             return { action: 'deny' };
         });
 
-        // Same for in-place navigations to a Google sign-in page.
-        view.webContents.on('will-navigate', (event, url) => {
-            if (isGoogleHost(url)) {
-                event.preventDefault();
-                openInSupportedBrowser(url);
-            }
+        // Child login windows don't inherit the parent's User-Agent — give them the same one
+        // (Firefox for Google apps) so Google's embedded-browser check doesn't fire there either.
+        view.webContents.on('did-create-window', (child) => {
+            try {
+                child.webContents.setUserAgent(userAgent);
+                child.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
+                    details.requestHeaders['User-Agent'] = userAgent;
+                    if (isGoogle) {
+                        delete details.requestHeaders['sec-ch-ua'];
+                        delete details.requestHeaders['sec-ch-ua-mobile'];
+                        delete details.requestHeaders['sec-ch-ua-platform'];
+                    }
+                    callback({ requestHeaders: details.requestHeaders });
+                });
+                child.webContents.setWindowOpenHandler(({ url }) => {
+                    require('electron').shell.openExternal(url);
+                    return { action: 'deny' };
+                });
+            } catch (e) { }
         });
 
         // Handle Reload shortcut for the active view

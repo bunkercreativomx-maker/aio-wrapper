@@ -25,18 +25,19 @@ different application"*:
 > application.
 > — https://support.google.com/accounts/answer/7675428
 
-WrapperOne is such an application (Electron/Chromium embedded), so Gmail, Google
-Messages and any "Sign in with Google" inside an embedded view will show
-*"This browser or app may not be secure"*. This is Google's policy, not a bug —
-no User-Agent change, header tweak or Electron upgrade gets around it.
+WrapperOne is such an application (Electron/Chromium embedded). Google **can**
+detect Electron when the browser claims to be Chrome.
 
-**What WrapperOne does instead:** Google-hosted apps are **not embedded**. They
-are handed to your real browser in app mode — the same mechanism Omarchy's own
-`omarchy-launch-webapp` uses — where sign-in works and your session already
-exists. You'll see a note in the app saying it was opened in your browser.
+**What WrapperOne does:** for Google-hosted apps (Gmail, Messages, Drive,
+Calendar, Docs, Photos, Meet, Keep) the session presents a **Firefox
+User-Agent** instead of a Chrome one. Google's embedded-browser check does not
+fire for Firefox, so sign-in works **inside the app**. This is the technique the
+Wexond Electron browser uses (https://stackoverflow.com/a/68231284); Ferdium's
+maintainers describe UA spoofing as the only consistent workaround for the same
+issue. It is a workaround, not a guarantee — Google has changed this detection
+before, and if they do again it may need revisiting.
 
-For everyday Google use on Omarchy, the alternative is installing them as native
-web apps: *Install > Web App* in the Omarchy menu.
+Normal Chrome-UA handling is used for every non-Google app.
 
 ## Release process
 
