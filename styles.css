@@ -81,6 +81,15 @@ input,
     font-size: 11px;
 }
 
+/* Real app logo in the top bar (rocket-W icon) */
+.brand-logo {
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    object-fit: contain;
+    display: block;
+}
+
 .brand .sub {
     color: var(--muted);
     font-weight: 400;
