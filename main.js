@@ -289,9 +289,44 @@ ipcMain.on('switch-app', (event, { id, url }) => {
             callback({ requestHeaders: details.requestHeaders });
         });
 
-        // Prevent web apps like Gmail from opening new separate OS windows
-        // Instead, open them in the user's default external browser
+        // Web apps open many links via window.open(). Login/OAuth flows (Google sign-in and
+        // friends) MUST stay inside the app or the user can never authenticate, so allow those
+        // as real in-app popups. Everything else opens in the default external browser.
+        const AUTH_HOSTS = [
+            'accounts.google.com',
+            'accounts.youtube.com',
+            'myaccount.google.com',
+            'login.microsoftonline.com',
+            'login.live.com',
+            'appleid.apple.com',
+            'github.com',
+            'api.slack.com',
+            'slack.com'
+        ];
         view.webContents.setWindowOpenHandler(({ url }) => {
+            let isAuth = false;
+            try {
+                const host = new URL(url).hostname;
+                isAuth = AUTH_HOSTS.some((h) => host === h || host.endsWith('.' + h));
+            } catch (e) { /* not a URL we can parse */ }
+
+            if (isAuth) {
+                // Open as an in-app popup window so the OAuth flow completes inside WrapperOne.
+                return {
+                    action: 'allow',
+                    overrideBrowserWindowOptions: {
+                        width: 520,
+                        height: 680,
+                        autoHideMenuBar: true,
+                        webPreferences: {
+                            partition: `persist:${id}`,
+                            contextIsolation: true,
+                            nodeIntegration: false
+                        }
+                    }
+                };
+            }
+
             require('electron').shell.openExternal(url);
             return { action: 'deny' };
         });
