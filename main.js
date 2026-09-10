@@ -459,7 +459,7 @@ ipcMain.on('switch-app', (event, { id, url }) => {
 
     // Toggling visibility forces the native view to repaint on switch — without it the view
     // sometimes comes back black until the window is redrawn (a known WebContentsView quirk
-    // on Linux/Wayland).
+    // on Linux/Wayland). We also explicitly repaint the window's backing to be sure.
     try {
         newView.setVisible(true);
         mainWindow.contentView.addChildView(newView); // Bring to front
@@ -467,6 +467,14 @@ ipcMain.on('switch-app', (event, { id, url }) => {
 
     resizeViewRobust(newView);
     try { newView.webContents.focus(); } catch (e) { }
+
+    // Force the window to redraw its surface so the newly-shown view paints instead of staying
+    // a black hole. Also nudge the frame twice (some compositors need a frame to register it).
+    try {
+        mainWindow.webContents.invalidate();
+        mainWindow.webContents.invalidate();
+        mainWindow.setContentBounds(mainWindow.getContentBounds());
+    } catch (e) { }
 });
 
 ipcMain.on('remove-app', (event, id) => {
