@@ -306,45 +306,14 @@ ipcMain.on('switch-app', (event, { id, url }) => {
             } catch (e) { /* not a URL we can parse */ }
 
             if (isAuth) {
-                // Open as an in-app popup window so the OAuth flow completes inside WrapperOne.
-                return {
-                    action: 'allow',
-                    overrideBrowserWindowOptions: {
-                        width: 520,
-                        height: 680,
-                        autoHideMenuBar: true,
-                        webPreferences: {
-                            partition: `persist:${id}`,
-                            contextIsolation: true,
-                            nodeIntegration: false
-                        }
-                    }
-                };
+                // Load the login flow in THIS view instead of spawning a separate window,
+                // so the user stays inside the app (no external/popup window).
+                view.webContents.loadURL(url);
+                return { action: 'deny' };
             }
 
             require('electron').shell.openExternal(url);
             return { action: 'deny' };
-        });
-
-        // Popup windows created above do NOT inherit this view's User-Agent, so Google sees the
-        // stock Electron UA and refuses with "This browser or app may not be secure". Apply the
-        // same modern UA (and strip the client-hint headers) to every child window it spawns.
-        view.webContents.on('did-create-window', (child) => {
-            try {
-                child.webContents.setUserAgent(userAgent);
-                child.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
-                    details.requestHeaders['User-Agent'] = userAgent;
-                    delete details.requestHeaders['sec-ch-ua'];
-                    delete details.requestHeaders['sec-ch-ua-mobile'];
-                    delete details.requestHeaders['sec-ch-ua-platform'];
-                    callback({ requestHeaders: details.requestHeaders });
-                });
-                // Keep external links from the popup going to the real browser.
-                child.webContents.setWindowOpenHandler(({ url }) => {
-                    require('electron').shell.openExternal(url);
-                    return { action: 'deny' };
-                });
-            } catch (e) { }
         });
 
         // Handle Reload shortcut for the active view
