@@ -446,6 +446,7 @@ ipcMain.on('switch-app', (event, { id, url }) => {
     // Remove existing active view from display
     if (activeAppId && views[activeAppId] && !isAppHidden) {
         try {
+            views[activeAppId].setVisible(false);
             mainWindow.contentView.removeChildView(views[activeAppId]);
         } catch (e) { }
     }
@@ -456,11 +457,16 @@ ipcMain.on('switch-app', (event, { id, url }) => {
     activeAppId = id;
     const newView = views[id];
 
+    // Toggling visibility forces the native view to repaint on switch — without it the view
+    // sometimes comes back black until the window is redrawn (a known WebContentsView quirk
+    // on Linux/Wayland).
     try {
+        newView.setVisible(true);
         mainWindow.contentView.addChildView(newView); // Bring to front
     } catch (e) { }
 
     resizeViewRobust(newView);
+    try { newView.webContents.focus(); } catch (e) { }
 });
 
 ipcMain.on('remove-app', (event, id) => {
@@ -479,6 +485,7 @@ ipcMain.on('remove-app', (event, id) => {
 ipcMain.on('hide-active-app', () => {
     if (activeAppId && views[activeAppId] && !isAppHidden) {
         try {
+            views[activeAppId].setVisible(false);
             mainWindow.contentView.removeChildView(views[activeAppId]);
             isAppHidden = true;
         } catch (e) { }
@@ -488,6 +495,7 @@ ipcMain.on('hide-active-app', () => {
 ipcMain.on('show-active-app', () => {
     if (activeAppId && views[activeAppId] && isAppHidden) {
         try {
+            views[activeAppId].setVisible(true);
             mainWindow.contentView.addChildView(views[activeAppId]);
             resizeViewRobust(views[activeAppId]);
             isAppHidden = false;
