@@ -436,4 +436,24 @@ if (window.electronAPI && window.electronAPI.onCycleApp) {
     window.electronAPI.onCycleApp(() => cycleApp(1));
 }
 
+// An app was handed off to the real browser (Google apps can't be embedded) — say so.
+if (window.electronAPI && window.electronAPI.onOpenedExternal) {
+    window.electronAPI.onOpenedExternal(({ id }) => {
+        const app = apps.find(a => a.id === id);
+        const name = app ? app.name : 'La aplicación';
+
+        activeAppId = id;
+        renderApps();
+
+        const ws = document.getElementById('welcome-screen');
+        if (ws) {
+            ws.style.display = 'flex';
+            const h = ws.querySelector('h1');
+            const p = ws.querySelector('p');
+            if (h) h.textContent = `${name} se abrió en tu navegador`;
+            if (p) p.textContent = 'Google no permite el inicio de sesión dentro de apps embebidas, así que se abrió en tu navegador real (donde ya tienes tu sesión).';
+        }
+    });
+}
+
 init();

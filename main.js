@@ -1,7 +1,56 @@
-const { app, BrowserWindow, WebContentsView, ipcMain, Tray, Menu, nativeImage, dialog } = require('electron');
+const { app, BrowserWindow, WebContentsView, ipcMain, Tray, Menu, nativeImage, dialog, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 const path = require('path');
+const { spawn } = require('child_process');
+
+// --- Google apps: do NOT embed -----------------------------------------------
+// Google refuses sign-in from browsers "embedded in a different application"
+// (https://support.google.com/accounts/answer/7675428) and tells developers to use a
+// real supported browser. So for Google-hosted apps we hand off to the system browser in
+// app mode (the same thing Omarchy's own `omarchy-launch-webapp` does) instead of embedding.
+const GOOGLE_APP_HOSTS = [
+    'accounts.google.com',
+    'mail.google.com',
+    'messages.google.com',
+    'drive.google.com',
+    'calendar.google.com',
+    'docs.google.com',
+    'photos.google.com',
+    'meet.google.com',
+    'keep.google.com'
+];
+
+function isGoogleHost(url) {
+    try {
+        const host = new URL(url).hostname;
+        return GOOGLE_APP_HOSTS.some((h) => host === h || host.endsWith('.' + h));
+    } catch (e) {
+        return false;
+    }
+}
+
+// Open a URL in the user's real (supported) browser, as an app window when possible.
+// Prefers Omarchy's native launcher so we behave exactly like Omarchy web apps.
+function openInSupportedBrowser(url) {
+    if (process.platform !== 'linux') {
+        shell.openExternal(url);
+        return;
+    }
+    // 1) Omarchy native web-app launcher (uses the default supported browser, --app mode)
+    const launcher = spawn('omarchy-launch-webapp', [url], { detached: true, stdio: 'ignore' });
+    launcher.on('error', () => {
+        // 2) Plain Chromium/Chrome app window
+        const chromium = spawn('chromium', ['--app=' + url], { detached: true, stdio: 'ignore' });
+        chromium.on('error', () => {
+            const chrome = spawn('google-chrome', ['--app=' + url], { detached: true, stdio: 'ignore' });
+            chrome.on('error', () => shell.openExternal(url));
+            chrome.unref();
+        });
+        chromium.unref();
+    });
+    launcher.unref();
+}
 
 // Detached launches (e.g. an AppImage started from the desktop launcher, not a terminal)
 // have a closed stdout/stderr pipe. electron-log's console transport then throws EPIPE and
@@ -274,6 +323,14 @@ app.on('window-all-closed', function () {
 
 // Manage views via IPC
 ipcMain.on('switch-app', (event, { id, url }) => {
+    // Google-hosted apps can't be embedded (Google blocks sign-in for embedded browsers),
+    // so hand them to the real browser in app mode instead of showing a blocked page.
+    if (isGoogleHost(url)) {
+        openInSupportedBrowser(url);
+        if (mainWindow) mainWindow.webContents.send('opened-external', { id, url });
+        return;
+    }
+
     if (activeAppId === id) return; // Already active
 
     // Create view if it doesn't exist
@@ -316,6 +373,13 @@ ipcMain.on('switch-app', (event, { id, url }) => {
             'slack.com'
         ];
         view.webContents.setWindowOpenHandler(({ url }) => {
+            // Google auth/app popups can't complete inside an embedded browser — hand them to
+            // the real (supported) browser.
+            if (isGoogleHost(url)) {
+                openInSupportedBrowser(url);
+                return { action: 'deny' };
+            }
+
             let isAuth = false;
             try {
                 const host = new URL(url).hostname;
@@ -331,6 +395,14 @@ ipcMain.on('switch-app', (event, { id, url }) => {
 
             require('electron').shell.openExternal(url);
             return { action: 'deny' };
+        });
+
+        // Same for in-place navigations to a Google sign-in page.
+        view.webContents.on('will-navigate', (event, url) => {
+            if (isGoogleHost(url)) {
+                event.preventDefault();
+                openInSupportedBrowser(url);
+            }
         });
 
         // Handle Reload shortcut for the active view
