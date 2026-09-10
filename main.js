@@ -81,6 +81,11 @@ function createWindow() {
                 event.preventDefault();
             }
         }
+        // Ctrl/Cmd+S: cycle to the next app (works while the main window has focus)
+        if ((input.control || input.meta) && input.key.toLowerCase() === 's') {
+            event.preventDefault();
+            mainWindow.webContents.send('cycle-app');
+        }
     });
 
     // Handle window resize to resize active view
@@ -284,6 +289,11 @@ ipcMain.on('switch-app', (event, { id, url }) => {
             if ((input.control || input.meta) && input.key.toLowerCase() === 'r') {
                 view.webContents.reload();
                 event.preventDefault();
+            }
+            // Ctrl/Cmd+S cycles apps even when this web app has focus
+            if ((input.control || input.meta) && input.key.toLowerCase() === 's') {
+                event.preventDefault();
+                mainWindow.webContents.send('cycle-app');
             }
         });
 

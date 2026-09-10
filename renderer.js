@@ -141,6 +141,10 @@ function switchApp(id) {
 }
 
 function removeApp(id) {
+    const app = apps.find(a => a.id === id);
+    const label = app ? app.name : 'esta aplicación';
+    if (!window.confirm(`¿Seguro que quieres quitar "${label}" del dock?`)) return;
+
     apps = apps.filter(a => a.id !== id);
     if (activeAppId === id) {
         activeAppId = null;
@@ -152,6 +156,21 @@ function removeApp(id) {
     if (window.electronAPI) {
         window.electronAPI.removeApp(id);
     }
+}
+
+// Ctrl+S: rotate to the next app in the dock (wraps around).
+function cycleApp(step = 1) {
+    if (!apps.length) return;
+
+    const currentIndex = apps.findIndex(a => a.id === activeAppId);
+    // Nothing active yet: start at the first app.
+    if (currentIndex === -1) {
+        switchApp(apps[0].id);
+        return;
+    }
+
+    const nextIndex = (currentIndex + step + apps.length) % apps.length;
+    switchApp(apps[nextIndex].id);
 }
 
 function generateId() {
@@ -410,6 +429,11 @@ if (winMinBtn && window.electronAPI) {
     winMinBtn.addEventListener('click', () => window.electronAPI.windowMinimize());
     winMaxBtn.addEventListener('click', () => window.electronAPI.windowMaximizeToggle());
     winCloseBtn.addEventListener('click', () => window.electronAPI.windowClose());
+}
+
+// Ctrl+S from the main process (works even when a web app has focus)
+if (window.electronAPI && window.electronAPI.onCycleApp) {
+    window.electronAPI.onCycleApp(() => cycleApp(1));
 }
 
 init();
