@@ -202,6 +202,15 @@ const SEC_CH_UA = `"Google Chrome";v="${CHROME_MAJOR}", "Chromium";v="${CHROME_M
 // Client hints stay enabled so sec-ch-ua* matches the UA (real Chrome always sends them).
 app.userAgentFallback = MODERN_UA;
 
+// Linux-only rendering fix. Native views (WebContentsView) can come back BLACK after being
+// hidden and re-shown on Linux/Wayland — the window chrome still draws, only the native view
+// surface goes dark, and it only recovers when the whole window is redrawn. This is a known
+// GPU-compositing issue with native views on Linux (Windows is unaffected). Disabling GPU
+// compositing makes the compositor draw the view correctly. Must run before app is ready.
+if (process.platform === 'linux') {
+    app.commandLine.appendSwitch('disable-gpu-compositing');
+}
+
 if (gotTheLock) app.whenReady().then(async () => {
     const { default: Store } = await import('electron-store');
     store = new Store();
