@@ -30,7 +30,8 @@
         "asar": false,
         "win": {
             "target": "nsis",
-            "icon": "icon.ico"
+            "icon": "icon.ico",
+            "artifactName": "WrapperOne-Setup-${version}.${ext}"
         },
         "linux": {
             "target": [
@@ -38,7 +39,8 @@
             ],
             "category": "Network",
             "icon": "build/icon.png",
-            "maintainer": "pakov"
+            "maintainer": "pakov",
+            "artifactName": "WrapperOne-${version}.${ext}"
         },
         "nsis": {
             "oneClick": false,
