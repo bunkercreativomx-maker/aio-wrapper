@@ -146,16 +146,25 @@ function resizeViewRobust(view) {
     });
 }
 
-const UA_BY_PLATFORM = {
-    win32: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
-    linux: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
-    darwin: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+// Build the User-Agent from the ACTUAL Chromium version this Electron ships (process.versions.chrome).
+// Hardcoding a different version than the engine reports (e.g. claiming Chrome 138 while running
+// Chromium 132) is exactly the mismatch Google's "browser may not be secure" check looks for.
+// Deriving it keeps the UA and the engine in sync automatically, forever.
+const CHROME_FULL = process.versions.chrome || '0.0.0.0'; // e.g. "152.0.7977.78"
+const CHROME_MAJOR = CHROME_FULL.split('.')[0];
+
+const UA_PLATFORM = {
+    win32: 'Windows NT 10.0; Win64; x64',
+    linux: 'X11; Linux x86_64',
+    darwin: 'Macintosh; Intel Mac OS X 10_15_7'
 };
 const CH_PLATFORM = { win32: '"Windows"', linux: '"Linux"', darwin: '"macOS"' };
-const MODERN_UA = UA_BY_PLATFORM[process.platform] || UA_BY_PLATFORM.linux;
 
-// Do NOT disable the client-hint features: a real Chrome sends sec-ch-ua*, and their absence
-// (as much as a mismatched UA) is what gets embedded browsers flagged by Google.
+const UA_PLAT = UA_PLATFORM[process.platform] || UA_PLATFORM.linux;
+const MODERN_UA = `Mozilla/5.0 (${UA_PLAT}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_FULL} Safari/537.36`;
+const SEC_CH_UA = `"Google Chrome";v="${CHROME_MAJOR}", "Chromium";v="${CHROME_MAJOR}", "Not?A_Brand";v="24"`;
+
+// Client hints stay enabled so sec-ch-ua* matches the UA (real Chrome always sends them).
 app.userAgentFallback = MODERN_UA;
 
 if (gotTheLock) app.whenReady().then(async () => {
@@ -286,7 +295,7 @@ ipcMain.on('switch-app', (event, { id, url }) => {
             // claiming to be Chrome is itself a bot signal (real Chrome always sends them), so
             // set them to match the UA instead of removing them.
             details.requestHeaders['User-Agent'] = userAgent;
-            details.requestHeaders['sec-ch-ua'] = '"Chromium";v="138", "Google Chrome";v="138", "Not?A_Brand";v="24"';
+            details.requestHeaders['sec-ch-ua'] = SEC_CH_UA;
             details.requestHeaders['sec-ch-ua-mobile'] = '?0';
             details.requestHeaders['sec-ch-ua-platform'] = CH_PLATFORM[process.platform] || '"Linux"';
             callback({ requestHeaders: details.requestHeaders });
