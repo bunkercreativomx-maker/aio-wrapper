@@ -275,14 +275,9 @@ ipcMain.on('switch-app', (event, { id, url }) => {
         view.webContents.setUserAgent(userAgent);
 
         view.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
-            let finalUserAgent = userAgent;
-
-            // Use Firefox UA specifically for Google Sign-in to bypass the security block
-            if (details.url.includes('accounts.google.com') || details.url.includes('myaccount.google.com')) {
-                finalUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0';
-            }
-
-            details.requestHeaders['User-Agent'] = finalUserAgent;
+            // Keep one consistent modern Chrome UA everywhere; mixed/overridden UAs make Google's
+            // "browser may not be secure" check trip.
+            details.requestHeaders['User-Agent'] = userAgent;
             delete details.requestHeaders['sec-ch-ua'];
             delete details.requestHeaders['sec-ch-ua-mobile'];
             delete details.requestHeaders['sec-ch-ua-platform'];
@@ -329,6 +324,27 @@ ipcMain.on('switch-app', (event, { id, url }) => {
 
             require('electron').shell.openExternal(url);
             return { action: 'deny' };
+        });
+
+        // Popup windows created above do NOT inherit this view's User-Agent, so Google sees the
+        // stock Electron UA and refuses with "This browser or app may not be secure". Apply the
+        // same modern UA (and strip the client-hint headers) to every child window it spawns.
+        view.webContents.on('did-create-window', (child) => {
+            try {
+                child.webContents.setUserAgent(userAgent);
+                child.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
+                    details.requestHeaders['User-Agent'] = userAgent;
+                    delete details.requestHeaders['sec-ch-ua'];
+                    delete details.requestHeaders['sec-ch-ua-mobile'];
+                    delete details.requestHeaders['sec-ch-ua-platform'];
+                    callback({ requestHeaders: details.requestHeaders });
+                });
+                // Keep external links from the popup going to the real browser.
+                child.webContents.setWindowOpenHandler(({ url }) => {
+                    require('electron').shell.openExternal(url);
+                    return { action: 'deny' };
+                });
+            } catch (e) { }
         });
 
         // Handle Reload shortcut for the active view
