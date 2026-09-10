@@ -1,6 +1,18 @@
 const { app, BrowserWindow, WebContentsView, ipcMain, Tray, Menu, nativeImage, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
+const log = require('electron-log');
 const path = require('path');
+
+// Detached launches (e.g. an AppImage started from the desktop launcher, not a terminal)
+// have a closed stdout/stderr pipe. electron-log's console transport then throws EPIPE and
+// crashes the main process before the window ever shows. Log to file only, and swallow
+// broken-pipe errors just in case.
+log.transports.console.level = false;
+process.on('uncaughtException', (err) => {
+    if (err && (err.code === 'EPIPE' || String(err.message || '').includes('EPIPE'))) return;
+    log.error('Uncaught exception:', err);
+});
+
 let mainWindow;
 let views = {};
 let activeAppId = null;
@@ -214,7 +226,7 @@ if (gotTheLock) app.whenReady().then(async () => {
 
     // --- Auto Updater Logic ---
     // Log updates somewhere to track them easily
-    autoUpdater.logger = require('electron-log');
+    autoUpdater.logger = log;
     autoUpdater.logger.transports.file.level = 'info';
 
     autoUpdater.on('update-available', () => {
