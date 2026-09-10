@@ -146,9 +146,16 @@ function resizeViewRobust(view) {
     });
 }
 
-const MODERN_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36';
+const UA_BY_PLATFORM = {
+    win32: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+    linux: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36',
+    darwin: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36'
+};
+const CH_PLATFORM = { win32: '"Windows"', linux: '"Linux"', darwin: '"macOS"' };
+const MODERN_UA = UA_BY_PLATFORM[process.platform] || UA_BY_PLATFORM.linux;
 
-app.commandLine.appendSwitch('disable-features', 'SecCHUA,SecCHUAMobile,SecCHUAPlatform');
+// Do NOT disable the client-hint features: a real Chrome sends sec-ch-ua*, and their absence
+// (as much as a mismatched UA) is what gets embedded browsers flagged by Google.
 app.userAgentFallback = MODERN_UA;
 
 if (gotTheLock) app.whenReady().then(async () => {
@@ -275,12 +282,13 @@ ipcMain.on('switch-app', (event, { id, url }) => {
         view.webContents.setUserAgent(userAgent);
 
         view.webContents.session.webRequest.onBeforeSendHeaders((details, callback) => {
-            // Keep one consistent modern Chrome UA everywhere; mixed/overridden UAs make Google's
-            // "browser may not be secure" check trip.
+            // Present a fully consistent modern Chrome. Deleting the client-hint headers while
+            // claiming to be Chrome is itself a bot signal (real Chrome always sends them), so
+            // set them to match the UA instead of removing them.
             details.requestHeaders['User-Agent'] = userAgent;
-            delete details.requestHeaders['sec-ch-ua'];
-            delete details.requestHeaders['sec-ch-ua-mobile'];
-            delete details.requestHeaders['sec-ch-ua-platform'];
+            details.requestHeaders['sec-ch-ua'] = '"Chromium";v="138", "Google Chrome";v="138", "Not?A_Brand";v="24"';
+            details.requestHeaders['sec-ch-ua-mobile'] = '?0';
+            details.requestHeaders['sec-ch-ua-platform'] = CH_PLATFORM[process.platform] || '"Linux"';
             callback({ requestHeaders: details.requestHeaders });
         });
 
