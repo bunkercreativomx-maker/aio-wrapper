@@ -1,13 +1,13 @@
 name: Release
 
-# Builds the Windows installer and the Linux AppImage and publishes them to a GitHub Release
-# whenever a version tag like v1.0.9 is pushed. electron-updater then auto-updates installed
-# apps. Tag name MUST equal the version in package.json (with leading "v").
+# Builds the Windows installer and the Linux AppImage and publishes them to ONE GitHub Release
+# whenever a version tag like v1.3.0 is pushed. Tag name MUST equal package.json version (with "v").
 #
-# IMPORTANT: electron-builder only uploads assets to a release that is still a DRAFT, and it
-# refuses to touch an existing PUBLISHED release with the same tag. So neither build job may
-# publish. Each job uploads its platform's assets to the same draft, then a final `publish`
-# job (which waits for both) flips the draft to published exactly once.
+# Why the build jobs never publish themselves: electron-builder's GitHub publisher creates/updates
+# a release per file-upload, and with two platform jobs that races into duplicate release records
+# for the same tag (we hit exactly that: one draft with the good assets, one published with just a
+# blockmap). Instead each job builds with --publish never and uploads plain artifacts; a single
+# final job creates the one release from those artifacts. Deterministic, no races.
 
 on:
   push:
@@ -16,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to release (must already be in package.json), e.g. 1.0.9'
+        description: 'Version to release (must already be in package.json), e.g. 1.3.0'
         required: true
 
 permissions:
@@ -54,15 +54,23 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - name: Install dependencies
-        run: npm ci
-      - name: Build Windows installer (uploads to draft release)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run dist -- --publish always
+      - run: npm ci
+      - name: Build Windows installer (no publish)
+        run: npm run dist -- --publish never
+      - name: Collect Windows artifacts
+        shell: bash
+        run: |
+          mkdir -p out
+          cp dist/*.exe dist/*.blockmap dist/latest.yml out/ 2>/dev/null || true
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: win
+          path: out/*
+          if-no-files-found: error
 
   build-linux:
-    needs: build-windows
+    needs: verify-version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,29 +78,48 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - name: Install dependencies
-        run: npm ci
+      - run: npm ci
       # libfuse2 is needed by electron-builder to run/mount AppImages on Ubuntu 24 runners.
-      - name: Install AppImage tooling
-        run: sudo apt-get update && sudo apt-get install -y libfuse2
-      - name: Build Linux AppImage (uploads to draft release)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --linux AppImage --publish always
+      - run: sudo apt-get update && sudo apt-get install -y libfuse2
+      - name: Build Linux AppImage (no publish)
+        run: npx electron-builder --linux AppImage --publish never
+      - name: Collect Linux artifacts
+        run: |
+          mkdir -p out
+          cp dist/*.AppImage dist/latest-linux.yml out/ 2>/dev/null || true
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: out/*
+          if-no-files-found: error
 
-  # Waits for both platform builds, then publishes the draft release exactly once so
-  # downloads resolve to /download/<tag>/ (required for electron-updater).
+  # Single source of truth for the release: one job, one release, all platform assets.
   publish:
     needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     steps:
-      # gh needs a git repo to resolve the tag, so check out first.
-      - uses: actions/checkout@v4
-      - name: Publish draft release
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+      - name: Show collected assets
+        run: ls -la assets
+      - name: Create or update the GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${GITHUB_REF_NAME:-${{ github.event.inputs.version }}}"
-          gh release edit "$TAG" --draft=false
-          echo "Published $TAG"
+          TAG="${GITHUB_REF_NAME:-v${{ github.event.inputs.version }}}"
+          echo "Publishing $TAG"
+          # Fresh release: create it with all assets. If it somehow exists, replace its assets.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG exists; uploading/replacing assets"
+            gh release upload "$TAG" assets/* --clobber
+          else
+            gh release create "$TAG" assets/* \
+              --title "$TAG" \
+              --notes "WrapperOne $TAG — Windows (.exe) and Linux/Omarchy (.AppImage)."
+          fi
+          echo "--- final state ---"
           gh release view "$TAG" --json tagName,isDraft,assets --jq '{tag: .tagName, draft: .isDraft, assets: [.assets[].name]}'
