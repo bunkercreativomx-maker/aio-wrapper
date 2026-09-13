@@ -181,6 +181,24 @@ function resizeViewRobust(view) {
     });
 }
 
+// Park a view OUT of the visible rect WITHOUT detaching it from the window. Detaching a native
+// view (removeChildView) makes Linux compositors drop its surface, and re-attaching it later
+// leaves the view BLACK — the bug we kept hitting (a view created and shown once is fine until
+// you switch away and back). Keeping every view attached and only moving the inactive ones
+// off-screen preserves the surface, so switching always paints.
+const PARKED_Y = -20000;
+function parkView(view) {
+    if (!view) return;
+    try {
+        view.setVisible(false); // hide WITHOUT detaching (keeps the surface alive)
+        view.setBounds({ x: 0, y: PARKED_Y, width: 100, height: 100 });
+    } catch (e) { }
+}
+function unparkView(view) {
+    if (!view) return;
+    try { view.setVisible(true); } catch (e) { }
+}
+
 // Build the User-Agent from the ACTUAL Chromium version this Electron ships (process.versions.chrome).
 // Hardcoding a different version than the engine reports (e.g. claiming Chrome 138 while running
 // Chromium 132) is exactly the mismatch Google's "browser may not be secure" check looks for.
@@ -329,6 +347,7 @@ ipcMain.on('switch-app', (event, { id, url }) => {
         });
         views[id] = view;
         mainWindow.contentView.addChildView(view);
+        parkView(view); // attached but off-screen until it becomes the active app
 
         // Choose the identity for this app's session:
         //  - Google apps: Firefox UA (Google's embedded-browser check doesn't fire for Firefox),
@@ -452,38 +471,22 @@ ipcMain.on('switch-app', (event, { id, url }) => {
         });
     }
 
-    // Remove existing active view from display
-    if (activeAppId && views[activeAppId] && !isAppHidden) {
-        try {
-            views[activeAppId].setVisible(false);
-            mainWindow.contentView.removeChildView(views[activeAppId]);
-        } catch (e) { }
-    }
+    // Park every OTHER view off-screen instead of detaching it. Detaching (removeChildView)
+    // is what leaves native views black after a switch on Linux/Wayland, so we never detach
+    // here — inactive views simply move out of the visible rect and keep their surface alive.
+    Object.keys(views).forEach((vid) => {
+        if (vid !== id) parkView(views[vid]);
+    });
 
     isAppHidden = false;
 
-    // Show new active view
+    // Bring the new active view into the visible rect (it is already attached).
     activeAppId = id;
     const newView = views[id];
 
-    // Toggling visibility forces the native view to repaint on switch — without it the view
-    // sometimes comes back black until the window is redrawn (a known WebContentsView quirk
-    // on Linux/Wayland). We also explicitly repaint the window's backing to be sure.
-    try {
-        newView.setVisible(true);
-        mainWindow.contentView.addChildView(newView); // Bring to front
-    } catch (e) { }
-
+    unparkView(newView);
     resizeViewRobust(newView);
     try { newView.webContents.focus(); } catch (e) { }
-
-    // Force the window to redraw its surface so the newly-shown view paints instead of staying
-    // a black hole. Also nudge the frame twice (some compositors need a frame to register it).
-    try {
-        mainWindow.webContents.invalidate();
-        mainWindow.webContents.invalidate();
-        mainWindow.setContentBounds(mainWindow.getContentBounds());
-    } catch (e) { }
 });
 
 ipcMain.on('remove-app', (event, id) => {
@@ -501,21 +504,16 @@ ipcMain.on('remove-app', (event, id) => {
 // App visibility for modals
 ipcMain.on('hide-active-app', () => {
     if (activeAppId && views[activeAppId] && !isAppHidden) {
-        try {
-            views[activeAppId].setVisible(false);
-            mainWindow.contentView.removeChildView(views[activeAppId]);
-            isAppHidden = true;
-        } catch (e) { }
+        // Park (not detach) so the surface survives for when the modal closes.
+        parkView(views[activeAppId]);
+        isAppHidden = true;
     }
 });
 
 ipcMain.on('show-active-app', () => {
     if (activeAppId && views[activeAppId] && isAppHidden) {
-        try {
-            views[activeAppId].setVisible(true);
-            mainWindow.contentView.addChildView(views[activeAppId]);
-            resizeViewRobust(views[activeAppId]);
-            isAppHidden = false;
-        } catch (e) { }
+        unparkView(views[activeAppId]);
+        resizeViewRobust(views[activeAppId]);
+        isAppHidden = false;
     }
 });
