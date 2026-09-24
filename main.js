@@ -76,6 +76,24 @@ if (IS_WIN) {
     app.setAppUserModelId('com.pakov.wrapperone');
 }
 
+// --- In-app keyboard shortcuts -------------------------------------------------------------
+// `input.meta` is the Windows/Super key on Windows and Linux, NOT a Ctrl equivalent. Accepting
+// it there made every OS shortcut that ends in our letter fire our handler too: Win+Shift+S
+// (Windows' screenshot tool) cycled to the next app, and Win+R reloaded the view. Only macOS
+// uses Cmd (= meta) as the app modifier.
+//
+// We also require that NO other modifier is held, so Ctrl+Shift+S / Ctrl+Alt+S stay with the
+// web app, and we ignore keyUp — before-input-event fires for both keyDown and keyUp, so the
+// old code ran each shortcut twice per press (cycling two apps at a time).
+const IS_MAC = process.platform === 'darwin';
+function isAppShortcut(input, key) {
+    if (input.type !== 'keyDown') return false;
+    if (String(input.key || '').toLowerCase() !== key) return false;
+    const primary = IS_MAC ? input.meta : input.control;
+    const otherMods = IS_MAC ? (input.control || input.alt) : (input.meta || input.alt);
+    return Boolean(primary) && !otherMods && !input.shift;
+}
+
 function createWindow() {
     // Frameless on every platform so our HTML chrome (topbar / stage / dock) is consistent.
     const winOptions = {
@@ -122,14 +140,14 @@ function createWindow() {
 
     // Handle Reload shortcut
     mainWindow.webContents.on('before-input-event', (event, input) => {
-        if ((input.control || input.meta) && input.key.toLowerCase() === 'r') {
+        if (isAppShortcut(input, 'r')) {
             if (activeAppId && views[activeAppId]) {
                 views[activeAppId].webContents.reload();
                 event.preventDefault();
             }
         }
         // Ctrl/Cmd+S: cycle to the next app (works while the main window has focus)
-        if ((input.control || input.meta) && input.key.toLowerCase() === 's') {
+        if (isAppShortcut(input, 's')) {
             event.preventDefault();
             mainWindow.webContents.send('cycle-app');
         }
@@ -264,6 +282,14 @@ if (gotTheLock) app.whenReady().then(async () => {
         store.set('apps', apps);
     });
 
+    // --- Drag & drop diagnostics (temporary) ---
+    // Reported by view-preload.js (inside a web app) and by renderer.js (the shell UI).
+    // Where the events show up tells us where a file drop is being lost on Windows.
+    ipcMain.on('diag-drag', (event, d) => {
+        log.info(`[diag-drag] ${d.where}/${d.kind} files=${d.files} types=[${(d.types || []).join(',')}] ${d.url || ''}`);
+    });
+    log.info(`[diag-drag] session start — platform=${process.platform} electron=${process.versions.electron} chrome=${process.versions.chrome}`);
+
     createWindow();
 
     // Create Tray
@@ -342,7 +368,12 @@ ipcMain.on('switch-app', (event, { id, url }) => {
     if (!views[id]) {
         const view = new WebContentsView({
             webPreferences: {
-                partition: `persist:${id}` // Isolate session per app so multiple instances don't collide
+                partition: `persist:${id}`, // Isolate session per app so multiple instances don't collide
+                // Observation-only preload that reports drag/drop events reaching the page.
+                // See view-preload.js and the 'diag-drag' handler below.
+                preload: path.join(__dirname, 'view-preload.js'),
+                contextIsolation: true,
+                nodeIntegration: false
             }
         });
         views[id] = view;
@@ -436,12 +467,12 @@ ipcMain.on('switch-app', (event, { id, url }) => {
 
         // Handle Reload shortcut for the active view
         view.webContents.on('before-input-event', (event, input) => {
-            if ((input.control || input.meta) && input.key.toLowerCase() === 'r') {
+            if (isAppShortcut(input, 'r')) {
                 view.webContents.reload();
                 event.preventDefault();
             }
             // Ctrl/Cmd+S cycles apps even when this web app has focus
-            if ((input.control || input.meta) && input.key.toLowerCase() === 's') {
+            if (isAppShortcut(input, 's')) {
                 event.preventDefault();
                 mainWindow.webContents.send('cycle-app');
             }
@@ -459,6 +490,15 @@ ipcMain.on('switch-app', (event, { id, url }) => {
                 { role: 'selectAll' }
             ]);
             menu.popup(mainWindow);
+        });
+
+        // An unhandled file drop makes Chromium navigate to file:///... — if that shows up here,
+        // the drop DID reach this view and the web app simply refused it.
+        view.webContents.on('will-navigate', (e, target) => {
+            if (target.startsWith('file://')) {
+                log.info(`[diag-drag] view "${id}" tried to navigate to a dropped file: ${target} (blocked)`);
+                e.preventDefault();
+            }
         });
 
         view.webContents.loadURL(url);
